@@ -1,0 +1,72 @@
+# ========== Sigmoid function, used to moderate the impact of emotional intensity==========
+def sigmoid(x):
+    return 1 / (1 + math.exp(-x))
+
+# ========== Parameter tuning function ==========
+def get_generation_config_by_mbti_emotions(mbti_type, emotions):
+    mbti_type = mbti_type.upper()
+    emotions = {k.lower(): float(v) for k, v in emotions.items()}
+
+    # Default configuration
+    config = {
+        "temperature": 0.8,
+        "top_p": 0.9,
+        "top_k": 10,
+        "repetition_penalty": 1.1,
+        "max_new_tokens": 100,
+        "do_sample": True,
+        "num_return_sequences": 3,  # Multiple sequence outputs for easier selection
+    }
+
+    mbti_config = {
+        "INFP": {"temperature": 0.95, "top_p": 0.95},
+        "ENFP": {"temperature": 1.0, "top_p": 0.92},
+        "INFJ": {"temperature": 0.75, "top_p": 0.9},
+        "ENFJ": {"temperature": 0.85, "top_p": 0.93},
+        "ISTJ": {"temperature": 0.65, "top_p": 0.85},
+        "ISFJ": {"temperature": 0.7, "top_p": 0.88},
+        "ESTJ": {"temperature": 0.7, "top_p": 0.85},
+        "ESFJ": {"temperature": 0.8, "top_p": 0.88},
+        "ISTP": {"temperature": 0.75, "top_p": 0.9},
+        "ISFP": {"temperature": 0.9, "top_p": 0.95},
+        "ESTP": {"temperature": 0.85, "top_p": 0.9},
+        "ESFP": {"temperature": 0.95, "top_p": 0.95},
+        "INTP": {"temperature": 0.75, "top_p": 0.88},
+        "ENTP": {"temperature": 0.95, "top_p": 0.92},
+        "INTJ": {"temperature": 0.65, "top_p": 0.85},
+        "ENTJ": {"temperature": 0.7, "top_p": 0.88},
+    }
+
+    emotion_adjust = {
+        "happy":     {"temp_base": 0.05,  "top_p_base": 0.02,  "top_k_base": -5,   "rep_penalty_base": 0.0},
+        "sad":       {"temp_base": -0.1,  "top_p_base": -0.05, "top_k_base": 10,   "rep_penalty_base": 0.05},
+        "angry":     {"temp_base": 0.1,   "top_p_base": -0.02, "top_k_base": 15,   "rep_penalty_base": 0.1},
+        "neutral":   {"temp_base": 0.0,   "top_p_base": 0.0,   "top_k_base": 0,    "rep_penalty_base": 0.0},
+        "fear":      {"temp_base": 0.1,   "top_p_base": 0.05,  "top_k_base": -10,  "rep_penalty_base": 0.05},
+        "surprise":  {"temp_base": 0.15,  "top_p_base": 0.1,   "top_k_base": -15,  "rep_penalty_base": 0.0},
+    }
+
+    if mbti_type in mbti_config:
+        config.update(mbti_config[mbti_type])
+
+    temp_offset = 0
+    topp_offset = 0
+    topk_offset = 0
+    rep_penalty_offset = 0
+    for emo, strength in emotions.items():
+        if emo in emotion_adjust:
+            # Use the sigmoid function to smooth the impact of extreme emotions on parameters.
+            strength_s = sigmoid((strength - 0.5)*10)  
+            temp_offset += emotion_adjust[emo]["temp_base"] * strength_s
+            topp_offset += emotion_adjust[emo]["top_p_base"] * strength_s
+            topk_offset += emotion_adjust[emo]["top_k_base"] * strength_s
+            rep_penalty_offset += emotion_adjust[emo]["rep_penalty_base"] * strength_s
+
+    config["temperature"] = min(max(config["temperature"] + temp_offset, 0.5), 1.5)
+    config["top_p"] = min(max(config["top_p"] + topp_offset, 0.5), 1.0)
+    config["top_k"] = int(min(max(config["top_k"] + topk_offset, 10), 100))
+    config["repetition_penalty"] = min(max(config["repetition_penalty"] + rep_penalty_offset, 1.0), 1.5)
+
+    print(f"[test] Generate parameters：temperature={config['temperature']:.3f}, top_p={config['top_p']:.3f}, top_k={config['top_k']}, repetition_penalty={config['repetition_penalty']:.3f}")
+
+    return config
